@@ -1168,3 +1168,208 @@ Vytvoření soubor index.php
 	* `service lighttpd force-reload`
 * Vypsání stránky
 	* `curl test.spos`
+
+Muj test
+===========================================
+netstat -tulpn \| grep :80
+Nastavení raidu 5 ze všech dostupných disků
+------------------------
+
+* `lsblk` - Ukaze vsechne disky
+
+```bash
+sdb    	8:16	0    	200M	0  	disk
+sdc    	8:32	0    	200M  	0 	disk
+sdd    	8:48	0		200M  	0  	disk
+```
+
+* `apt install mdadm` - Instalace balíčku mdadm
+
+* `mdadm -Cv /dev/md0 -l5 -n3 /dev/sd[bcd]` - Založení raidu 5
+
+* `mdadm --detail /dev/md0` - Vypíše stav raidu (kapacita, typ, počet zařízení…)
+
+Naformátování svazku jako EXT4 a automatické připojení jako /home
+-----------------------------------------------------------------
+
+* `mkfs.ext4 /dev/md0` - Naformátování share na ext4
+
+* `nano /etc/fstab` - Nastavení připojení share jako /home
+
+```bash
+/dev/md0	/home	ext4	defaults		0	2
+```
+
+* `mount -a` - Připojení všech oddílů z fstab
+
+* `lsblk -f` - Vypsání diskových oddílů včetně použitých FS a přípojných bodů
+
+MySql
+-----
+
+* `apt-get install mysql-server`
+
+1. Vytvorit tabulku "score". [id], [jmeno], [datum], [score]
+
+```sql
+CREATE TABLE score( 
+	id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY, 
+	jmeno VARCHAR(30), 
+	score INT(10), 
+	datum DATETIME 
+);
+
+```
+
+2. Vytvoreni uzivatele "spos" s heslem "spos\*2018", krery bude mit vsechna prava na novou databazi "db" a bude se moct pripojit pouze z 10.0.0.41
+
+```sql
+CREATE USER 'spos'@'10.0.0.41' IDENTIFIED BY 'spos\*2018';
+
+GRANT ALL PRIVILEGES ON db.* to 'spos'@'10.0.0.1' IDENTIFIED BY 'spos*2018';
+```
+3. Naplnit tabulku 30 daty
+
+```bash
+#!/bin/bash
+for i in `seq 1 50`; do
+	echo "INSERT INTO score (jmeno, score, datum) VALUES ('name"$i"', '"$i"', null);"
+done | mysql -u root -p1234 db
+```
+Web server
+----------
+
+1. Nainstalujte WEB server s podporou php
+
+* `apt-get install apache2` 
+* `apt-get install php5`
+* `apt-get install libapache2-mod-php5`
+* `apt-get install curl`
+
+2. Zmenit port WEBu na 8080
+
+* `vim /etc/apache2/ports.conf` - Zmenit Listen
+
+```bash
+Listen 8080
+#Listen 192.168.1.101:8090
+
+<IfModule ssl_module>
+        Listen 443
+</IfModule>
+
+<IfModule mod_gnutls.c>
+        Listen 443
+</IfModule>                                                    
+```
+
+* `vim /etc/apache2/sites-enabled/000-default.conf` - Zmenit VirtualHost
+
+```bash
+<VirtualHost *:8080>
+```
+
+* `service apache2 restart`
+* `netstat -tulpn | grep :8080` - kontrola
+
+3. Vyrvorit script php, ktery bude zobrazovat obsah tabulky sestupne
+
+```php
+<?php
+$servername = "localhost";
+$username = "root";
+$password = "1234";
+$dbname = "db";
+
+$conn = new mysqli($servername, $username, $password, $dbname);    
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+$sql = "SELECT * from score ORDER BY score DESC";
+$result = $conn->query($sql);
+
+if ($result->num_rows > 0) {
+    while($row = $result->fetch_assoc()) {
+        echo "id: " . $row["id"]. " - Name: " . $row["jmeno"]. " " . "\n";
+    }
+} else {
+    echo "0 results";
+}
+$conn->close();
+?>
+```
+* `vim /etc/apache2/mods-available/dir.conf` - pridat index.php na zacatek
+* `apt-get install php5-mysql`
+* `apt-get install php-mysqli`
+* `curl localhost:8080`
+
+4. Vytvorit 2 virtualni servery na portech 8181 a 8282, poslouchajici na privatni adrese 10.0.0.41
+
+* `/etc/apache2/ports.conf`
+
+```bash
+<VirtualHost *:8181>
+        DocumentRoot "/var/www/www1"
+        <Location />
+                Require ip 10.0.0.41
+        </Location>
+</VirtualHost>
+
+<VirtualHost *:8282>
+        DocumentRoot "/var/www/www2"
+        <Location />
+                Require ip 10.0.0.41
+        </Location>
+</VirtualHost>
+
+```
+
+* `cp 000-default.conf www1.conf`
+* `cp 000-default.conf www2.conf`
+* `vim www1.conf `
+* `vim www2.conf `
+* `service apache2 restart`
+* `mkdir /var/www/www1`
+* `mkdir /var/www/www2`
+* `echo "8181" > /var/www/www1/index.html`
+* `echo "8282" > /var/www/www2/index.html`
+* `a2ensite www1`
+* `a2ensite www2`
+* `ip a add 10.0.0.41 dev eth0`
+
+
+systemctl status nginx
+systemctl restart nginx
+nginx -t -kontrola
+lynx -dump http://10.0.0.41
+
+NGinx reverzni-proxy / load balanceru s podporou https.
+-----------------------------------------------------------------------------------
+
+1. Zpistupnete oba weby pomoci NGinx reverzni-proxy / load balanceru s podporou https.
+
+* `apt-get install nginx`
+* `touch /etc/nginx/sites-available/www.conf`
+* `vim /etc/nginx/sites-available/www.conf`
+```bash
+upstream 10.0.0.41 {
+    server  10.0.0.41:8181;
+    server  10.0.0.41:8282;
+}
+
+server {
+               listen  80; #port, na kterem ma nginx poslouchat
+               server_name 10.0.0.41; #jmeno stranky, kterou chceme balancovat
+
+                location / {
+                       proxy_pass http://10.0.0.41;
+                }
+}           
+```
+
+* `ln -s /etc/nginx/sites-available/www.conf /etc/nginx/sites-enabled/`
+* `systemctl enable nginx`
+* `systemctl restart nginx`
+* `systemctl status nginx.service`
+* `nginx -t`
