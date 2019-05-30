@@ -1400,6 +1400,14 @@ server {
 
 3. Nainstalujte PostgreSQL databazi. Zajistete, aby databaze pouzivala pouze IP 10.0.0.41 a TCP port 3333.
 * `apt-get	install	postgresql`
+* vim /etc/postgresql/9.6/main/postgresql.conf
+
+```bash
+listen_adresses = '10.0.0.41'
+port = 3333
+```
+
+* `/etc/init.d/postgresql restart`
 
 
 4. Vytvorte databazi spos a nastavte uzivatele spos, ktery s heslem ahoj bude mit pristup do teto Databazi pres IP 10.0.0.41
@@ -1408,6 +1416,73 @@ server {
 
 6. Na adrese 10.0.0.41 a portech 8888 a 8080 spuste Apache server, zobrazujici stranku s cislem portu.
 
+* `vim /etc/apache2/ports.conf`
+
+```bash
+Listen 10.0.0.41:8888
+Listen 10.0.0.41:8080
+
+<IfModule ssl_module>
+	Listen 443
+</IfModule>
+
+<IfModule mod_gnutls.c>
+	Listen 443
+</IfModule>
+```
+* `cp 000-default.conf www1.conf`
+* `cp 000-default.conf www2.conf`
+* `vim www1.conf ` - Zmenit port a DocumentRoot
+* `vim www2.conf ` - Zmenit port a DocumentRoot
+* `mkdir /var/www/www1`
+* `mkdir /var/www/www2`
+* `echo "8181" > /var/www/www1/index.html`
+* `echo "8282" > /var/www/www2/index.html`
+* `a2ensite www1`
+* `a2ensite www2`
+* `ip a add 10.0.0.41 dev eth0`
+* `vim /etc/hosts`
+
+```bash
+10.0.0.41	localhost
+```
+* `service apache2 restart`
+
 7. Pomoci reverzni proxy / balanceru zpristupnete obsah WWW serveru na verejne IP linuxu a portu 443/https pouzijte self-signed certifikat.
+
+* `apt-get install nginx` - instalace NGnix
+
+* `cp /etc/nginx/sites-available/default /etc/nginx/sites-available/www.conf`
+* `vim /etc/nginx/sites-available/www.conf`
+```bash
+upstream 10.0.0.41 {
+    server  10.0.0.41:8888;
+    server  10.0.0.41:8080;
+}
+
+server {
+               listen  80;
+               server_name 10.0.0.41; 
+
+                location / {
+                       proxy_pass http://10.0.0.41;
+                }
+}           
+```
+
+* `ln -s /etc/nginx/sites-available/www.conf /etc/nginx/sites-enabled/` - vytvoreni symbol linku
+* `systemctl restart nginx`
+* `systemctl status nginx.service` - info
+* `nginx -t` - info
+
+* `vim /etc/nginx/sites-aviable/www.conf` - self-signed certifikat
+
+```bash
+listen 443 ssl default_server;
+listen [::]:443 ssl default_server;
+
+###
+include snippets/snakeoil.conf;
+```
 
 8. Nastavte DNS pro domenu test.spos tak, aby z interni site 10.0.0.0/24 ukazovala IP adresu 10.0.0.41 a pro ostatni ukazovala verejnou IP. Nastavte reverzni zaznamy pro obe IP adresy a TXT zaznam oznamujici bla bla bla..
