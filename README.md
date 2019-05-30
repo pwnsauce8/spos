@@ -1400,19 +1400,53 @@ server {
 
 3. Nainstalujte PostgreSQL databazi. Zajistete, aby databaze pouzivala pouze IP 10.0.0.41 a TCP port 3333.
 * `apt-get	install	postgresql`
-* vim /etc/postgresql/9.6/main/postgresql.conf
+* `vim /etc/postgresql/9.6/main/postgresql.conf`
 
 ```bash
-listen_adresses = '10.0.0.41'
+listen_adresses = '*'
 port = 3333
+```
+* `vim /etc/postgresql/9.6/main/pg_hba.conf` - pridat radek
+
+```bash
+host    all     all     10.0.0.0/24 md5
+host    spos    spos    10.0.0.0/24 md5
 ```
 
 * `/etc/init.d/postgresql restart`
-
+* `netstat -tupln | grep 3333` - kontrola
 
 4. Vytvorte databazi spos a nastavte uzivatele spos, ktery s heslem ahoj bude mit pristup do teto Databazi pres IP 10.0.0.41
 
+su - postgres
+psql
+
+```sql
+CREATE USER spos WITH PASSWORD 'ahoj';
+CREATE DATABASE spos WITH OWNER=spos;
+GRANT ALL PRIVILEGES ON DATABASE spos to spos;
+```
+
+* `psql -U spos -W` -prihlaseni do databaze 
+
+
 5. Tabulka datum se sloupecky id a datum. Vytvorte script, ktery po zavolani bez zasahu uzivatele vlozi do tabulky udaj o aktualnim case.
+
+```sql
+\c spos
+CREATE TABLE dateTable(id SERIAL PRIMARY KEY, created_at timestamp default now());
+GRANT CONNECT ON DATABASE spos TO spos;
+GRANT ALL PRIVILEGES ON TABLE dateTable to spos;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA PUBLIC to spos;
+\q
+```
+
+* `vim insert.sh` - script na vkladani prvku do databaze
+
+```bash
+#!/bin/bash
+echo "INSERT INTO dateTable (id) values (1);" | psql spos -U spos
+```
 
 6. Na adrese 10.0.0.41 a portech 8888 a 8080 spuste Apache server, zobrazujici stranku s cislem portu.
 
@@ -1486,3 +1520,70 @@ include snippets/snakeoil.conf;
 ```
 
 8. Nastavte DNS pro domenu test.spos tak, aby z interni site 10.0.0.0/24 ukazovala IP adresu 10.0.0.41 a pro ostatni ukazovala verejnou IP. Nastavte reverzni zaznamy pro obe IP adresy a TXT zaznam oznamujici bla bla bla..
+
+* `vim /etc/hosts` - add 
+
+```bash
+10.0.0.1 test.spos
+```
+
+cd /etc/bind
+cp db.empty db.spos
+* vim db.spos
+
+```bash
+@	        IN    NS   localhost.
+test.spos.	IN    A    10.0.0.1
+```
+
+cp db.empty db.public
+* vim db.public
+
+```bash
+@	        IN    NS   localhost.
+test.spos.	IN    A    10.0.0.2
+```
+
+* `vim named.conf.local` - nastaveni zon
+```bash
+view "view1" { 
+	match-clients { 10.0.0.0/24; };
+	recursion yes;  
+		zone "test.spos" {
+		        type master;
+		        file "/etc/bind/db.spos";
+		};
+};
+view "view2" { 
+	match-clients { 10.0.0.1; };
+	recursion yes;  
+		zone "test.spos" {
+		        type master;
+		        file "/etc/bind/db.public";
+		};
+};
+
+```
+service bind9 restart
+* vim /etc/bind/named.conf.default-zones
+
+```bash
+view "myview" {
+	# zbytek kodu
+};
+```
+
+host test.spos 10.0.0.1/2/localhost
+
+
+
+
+
+
+
+
+
+
+
+
+
