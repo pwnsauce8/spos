@@ -1373,3 +1373,41 @@ server {
 * `systemctl restart nginx`
 * `systemctl status nginx.service`
 * `nginx -t`
+
+
+===================================================================================================
+
+1. Nastavte v Linuxu sdileni slozky /mnt pro Linux i Windows, sdileni ad je viditelne pod nazvem TEST a je dostupne pouze pro cteni. Zabespeceni at kontroluje server.
+
+* `apt-get install samba smbclient cifs-utils` instalace Samby
+
+* `vim /etc/samba/smb.conf`
+
+```bash
+[TEST]
+	comment = Prvni share co jsem kdy vyrobili
+    path = /srv/share1
+    browsable = yes
+    read only = yes 
+    guest ok = yes  
+```
+
+* `smbtree` - kontrola
+
+2. Pripojte ten to svazek do linuxu (pro pripojeni IP 10.0.0.41), tak aby byl pripojen i po startu.
+* `mount -t cifs //10.0.0.41/TEST /mnt/share -o username=pepa,pass=pepa`
+....
+
+3. Nainstalujte PostgreSQL databazi. Zajistete, aby databaze pouzivala pouze IP 10.0.0.41 a TCP port 3333.
+* `apt-get	install	postgresql`
+
+
+4. Vytvorte databazi spos a nastavte uzivatele spos, ktery s heslem ahoj bude mit pristup do teto Databazi pres IP 10.0.0.41
+
+5. Tabulka datum se sloupecky id a datum. Vytvorte script, ktery po zavolani bez zasahu uzivatele vlozi do tabulky udaj o aktualnim case.
+
+6. Na adrese 10.0.0.41 a portech 8888 a 8080 spuste Apache server, zobrazujici stranku s cislem portu.
+
+7. Pomoci reverzni proxy / balanceru zpristupnete obsah WWW serveru na verejne IP linuxu a portu 443/https pouzijte self-signed certifikat.
+
+8. Nastavte DNS pro domenu test.spos tak, aby z interni site 10.0.0.0/24 ukazovala IP adresu 10.0.0.41 a pro ostatni ukazovala verejnou IP. Nastavte reverzni zaznamy pro obe IP adresy a TXT zaznam oznamujici bla bla bla..
