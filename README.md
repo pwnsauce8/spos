@@ -1527,8 +1527,8 @@ include snippets/snakeoil.conf;
 10.0.0.1 test.spos
 ```
 
-cd /etc/bind
-cp db.empty db.spos
+* `cd /etc/bind`
+* `cp db.empty db.spos`
 * vim db.spos
 
 ```bash
@@ -1536,8 +1536,8 @@ cp db.empty db.spos
 test.spos.	IN    A    10.0.0.1
 ```
 
-cp db.empty db.public
-* vim db.public
+* `cp db.empty db.public`
+* `vim db.public`
 
 ```bash
 @	        IN    NS   localhost.
@@ -1564,7 +1564,7 @@ view "view2" {
 };
 
 ```
-service bind9 restart
+* `service bind9 restart`
 * vim /etc/bind/named.conf.default-zones
 
 ```bash
@@ -1573,7 +1573,7 @@ view "myview" {
 };
 ```
 
-host test.spos 10.0.0.1/2/localhost
+* `host test.spos 10.0.0.1/2/localhost` - kontrola
 
 
 
